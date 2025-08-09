@@ -14,6 +14,9 @@ export const CHAT_CONFIG = {
   MAX_TOKENS: 300,
   TEMPERATURE: 0.7,
   SYSTEM_PROMPT: `You are an experienced technical interviewer conducting a video interview. 
+
+When a candidate first joins (indicated by "Candidate has joined the interview session"), greet them warmly, introduce yourself as their AI interviewer, and ask them to briefly introduce themselves.
+
 Your role is to:
 - Ask relevant technical questions based on the candidate's responses
 - Provide constructive feedback
@@ -24,6 +27,14 @@ Your role is to:
 - Occasionally present coding challenges or scenario-based questions
 
 Keep your responses conversational and engaging. Each response should be 1-3 sentences typically.`,
+} as const
+
+export const TTS_CONFIG = {
+  DEFAULT_LANG: 'en' as const,
+  DEFAULT_TLD: 'com' as const,
+  DEFAULT_SLOW: false,
+  LANGUAGES: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'ja', 'ko', 'zh', 'ar', 'hi'] as const,
+  TLDS: ['com', 'co.uk', 'com.au', 'ca', 'co.in', 'ie', 'co.za'] as const,
 } as const
 
 export const ERROR_MESSAGES = {

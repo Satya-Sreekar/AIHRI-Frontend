@@ -1,10 +1,10 @@
-# Chat Service Integration
+# Chat Service Integration with TTS
 
-This directory contains the chat service implementation for connecting the AI interviewer with the backend API.
+This directory contains the chat service implementation for connecting the AI interviewer with the backend API, including Text-to-Speech functionality using gTTS.
 
 ## Overview
 
-The chat service provides real-time AI-powered interview conversations with streaming support, error handling, and retry logic.
+The chat service provides real-time AI-powered interview conversations with streaming support, error handling, retry logic, and integrated text-to-speech using Google's gTTS service.
 
 ## Architecture
 
@@ -14,7 +14,8 @@ The chat service provides real-time AI-powered interview conversations with stre
 │   (React)       │────│   (TypeScript)  │────│   (Django)      │
 │                 │    │                 │    │                 │
 │ • RightSidebar  │    │ • ChatService   │    │ • Ollama API    │
-│ • useChat Hook  │    │ • API Client    │    │ • Streaming     │
+│ • useChat Hook  │    │ • API Client    │    │ • gTTS Service  │
+│ • useTTS Hook   │    │ • TTS Client    │    │ • Streaming     │
 │ • Interview     │    │ • Error Handler │    │ • Models        │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -22,11 +23,12 @@ The chat service provides real-time AI-powered interview conversations with stre
 ## Files
 
 ### Core Services
-- `api.ts` - Low-level API client with retry logic and error handling
-- `chatService.ts` - High-level chat service for conversation management
+- `api.ts` - Low-level API client with retry logic, error handling, and TTS support
+- `chatService.ts` - High-level chat service for conversation management with TTS integration
 
 ### React Integration
 - `../hooks/useChat.ts` - React hook for chat functionality
+- `../hooks/useTTS.ts` - React hook for text-to-speech functionality
 - `../config/api.ts` - Configuration and constants
 
 ## Features
@@ -48,8 +50,17 @@ The chat service provides real-time AI-powered interview conversations with stre
 - Transcript integration
 - System prompt configuration
 
+### ✅ Text-to-Speech (gTTS)
+- Streaming audio generation using Google TTS
+- Multiple language support (English, Spanish, French, German, etc.)
+- Configurable speech speed and regional accents
+- Audio playback controls with play/pause functionality
+- Automatic TTS for AI responses (configurable)
+
 ### ✅ UI Integration
 - Interactive chat interface in RightSidebar
+- Audio playback controls for each AI message
+- TTS toggle button in sidebar header
 - Loading states and disabled states
 - Error alerts and notifications
 - Mobile-responsive design
@@ -72,22 +83,42 @@ function InterviewComponent() {
   } = useChat({
     model: 'llama3.2:latest',
     temperature: 0.7,
+    enableTTS: true,
+    ttsLang: 'en',
     autoInitialize: true,
+  })
+
+  const {
+    speak,
+    isPlaying,
+    audioRef,
+  } = useTTS({
+    lang: 'en',
+    autoPlay: false,
   })
 
   const handleSendMessage = async (message: string) => {
     await sendMessage(message)
   }
 
+  const handlePlayTTS = async (messageId: string, text: string) => {
+    await speak(text)
+  }
+
   return (
-    <RightSidebar
-      transcript={transcript}
-      onSendMessage={handleSendMessage}
-      isGenerating={isGenerating}
-      error={error?.message}
-      streamingMessage={streamingMessage}
-      disabled={!isServiceReady}
-    />
+    <>
+      <audio ref={audioRef} style={{ display: 'none' }} />
+      <RightSidebar
+        transcript={transcript}
+        onSendMessage={handleSendMessage}
+        onPlayTTS={handlePlayTTS}
+        isGenerating={isGenerating}
+        error={error?.message}
+        streamingMessage={streamingMessage}
+        disabled={!isServiceReady}
+        enableTTS={true}
+      />
+    </>
   )
 }
 ```
@@ -99,6 +130,13 @@ Environment variables (add to `.env.local`):
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8000/api
 NEXT_PUBLIC_DEFAULT_MODEL=llama3.2:latest
+```
+
+Backend dependencies (already added to `requirements.txt`):
+
+```bash
+# Install in your backend virtual environment
+pip install gtts==2.5.1
 ```
 
 ## Backend Requirements
@@ -143,6 +181,43 @@ List available AI models.
   ]
 }
 ```
+
+### POST `/api/tts/`
+Convert text to speech using gTTS.
+
+**Request:**
+```json
+{
+  "text": "Hello, this is a test of the text to speech system.",
+  "lang": "en",
+  "tld": "com",
+  "slow": false
+}
+```
+
+**Response:**
+Streaming MP3 audio data with `Content-Type: audio/mpeg`
+
+**Supported Languages:**
+- `en` - English (default)
+- `es` - Spanish
+- `fr` - French
+- `de` - German
+- `it` - Italian
+- `pt` - Portuguese
+- `ru` - Russian
+- `ja` - Japanese
+- `ko` - Korean
+- `zh` - Chinese
+- `ar` - Arabic
+- `hi` - Hindi
+
+**Supported TLDs (Regional Accents):**
+- `com` - Global (default)
+- `co.uk` - British English
+- `com.au` - Australian English
+- `ca` - Canadian English
+- `co.in` - Indian English
 
 ## Error Handling
 

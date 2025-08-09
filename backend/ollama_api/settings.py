@@ -149,6 +149,26 @@ SPECTACULAR_SETTINGS = {
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'range',  # Important for audio streaming
+]
+CORS_EXPOSE_HEADERS = [
+    'content-length',
+    'content-type',
+    'content-range',
+    'accept-ranges',
+]
 
 # Ollama settings
-OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434') 
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+
+# gTTS doesn't require API keys - uses Google's free TTS service 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { MessageSquare, Send, Loader2, AlertTriangle, Bot, User } from "lucide-react"
+import { MessageSquare, Send, Loader2, AlertTriangle, Bot, User, Volume2, VolumeX, Play, Pause, Download } from "lucide-react"
 import type { TranscriptEntry } from "@/components/types"
 
 interface RightSidebarProps {
@@ -17,6 +17,11 @@ interface RightSidebarProps {
   error?: string | null
   streamingMessage?: string
   disabled?: boolean
+  enableTTS?: boolean
+  onTTSToggle?: (enabled: boolean) => void
+  onPlayTTS?: (messageId: string, text: string) => void
+  ttsAudioMap?: Map<string, Blob>
+  currentPlayingId?: string | null
 }
 
 export default function RightSidebar({ 
@@ -26,7 +31,12 @@ export default function RightSidebar({
   isGenerating = false,
   error = null,
   streamingMessage = '',
-  disabled = false
+  disabled = false,
+  enableTTS = false,
+  onTTSToggle,
+  onPlayTTS,
+  ttsAudioMap = new Map(),
+  currentPlayingId = null
 }: RightSidebarProps) {
   const [inputValue, setInputValue] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -56,9 +66,26 @@ export default function RightSidebar({
       <div className="flex-1 flex flex-col p-4 min-h-0">
         <Card className="flex-1 flex flex-col border-0 shadow-none bg-transparent min-h-0">
           <CardHeader className="p-0 pb-4 flex-shrink-0">
-            <CardTitle className="text-sm text-white flex items-center">
-              <MessageSquare className="h-4 w-4 mr-2 text-cyan-400" />
-              Live Transcript
+            <CardTitle className="text-sm text-white flex items-center justify-between">
+              <div className="flex items-center">
+                <MessageSquare className="h-4 w-4 mr-2 text-cyan-400" />
+                Live Transcript
+              </div>
+              {onTTSToggle && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onTTSToggle(!enableTTS)}
+                  className="h-6 w-6 p-0 hover:bg-slate-600/50"
+                  title={enableTTS ? "Disable voice responses" : "Enable voice responses"}
+                >
+                  {enableTTS ? (
+                    <Volume2 className="h-3 w-3 text-cyan-400" />
+                  ) : (
+                    <VolumeX className="h-3 w-3 text-gray-400" />
+                  )}
+                </Button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0 flex-1 flex flex-col min-h-0">
@@ -89,6 +116,8 @@ export default function RightSidebar({
                     className={`space-y-2 backdrop-blur-sm rounded-lg p-3 border transition-all duration-200 ${
                       entry.speaker === 'Candidate'
                         ? 'bg-blue-700/20 border-blue-600/30 hover:bg-blue-700/30 ml-4'
+                        : entry.speaker === 'System'
+                        ? 'bg-yellow-700/20 border-yellow-600/30 hover:bg-yellow-700/30 mx-2'
                         : 'bg-slate-700/30 border-slate-600/30 hover:bg-slate-700/50 mr-4'
                     }`}
                   >
@@ -96,18 +125,46 @@ export default function RightSidebar({
                       <div className="flex items-center space-x-2">
                         {entry.speaker === 'Candidate' ? (
                           <User className="h-3 w-3 text-blue-400" />
+                        ) : entry.speaker === 'System' ? (
+                          <AlertTriangle className="h-3 w-3 text-yellow-400" />
                         ) : (
                           <Bot className="h-3 w-3 text-cyan-400" />
                         )}
                         <span className={`text-xs font-medium ${
-                          entry.speaker === 'Candidate' ? 'text-blue-300' : 'text-cyan-300'
+                          entry.speaker === 'Candidate' ? 'text-blue-300' : 
+                          entry.speaker === 'System' ? 'text-yellow-300' : 'text-cyan-300'
                         }`}>
                           {entry.speaker}
                         </span>
                       </div>
-                      <span className="text-xs text-gray-400">
-                        {entry.timestamp.toLocaleTimeString()}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        {entry.speaker === 'AI Interviewer' && onPlayTTS && (
+                          <div className="flex items-center space-x-1">
+                            {ttsAudioMap.has(entry.id) ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onPlayTTS(entry.id, entry.text)}
+                                className="h-5 w-5 p-0 hover:bg-slate-600/50"
+                                title="Play audio"
+                              >
+                                {currentPlayingId === entry.id ? (
+                                  <Pause className="h-2 w-2 text-cyan-400" />
+                                ) : (
+                                  <Play className="h-2 w-2 text-green-400 hover:text-cyan-400" />
+                                )}
+                              </Button>
+                            ) : (
+                              <div className="h-5 w-5 flex items-center justify-center" title="Generating audio...">
+                                <Download className="h-2 w-2 text-yellow-400 animate-pulse" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {entry.timestamp.toLocaleTimeString()}
+                        </span>
+                      </div>
                     </div>
                     <p className="text-sm text-gray-200 leading-relaxed">{entry.text}</p>
                     {entry.duration && (
@@ -127,9 +184,14 @@ export default function RightSidebar({
                           Typing...
                         </Badge>
                       </div>
-                      <span className="text-xs text-gray-400">
-                        {new Date().toLocaleTimeString()}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <div className="h-5 w-5 flex items-center justify-center" title="Will generate audio...">
+                          <Download className="h-2 w-2 text-yellow-400 animate-pulse" />
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {new Date().toLocaleTimeString()}
+                        </span>
+                      </div>
                     </div>
                     <p className="text-sm text-gray-200 leading-relaxed">
                       {streamingMessage}

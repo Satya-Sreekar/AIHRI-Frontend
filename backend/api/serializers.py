@@ -59,4 +59,27 @@ class OllamaResponseSerializer(serializers.Serializer):
     eval_duration = serializers.IntegerField(
         required=False,
         help_text="Time taken to generate the response in nanoseconds"
+    )
+
+
+class TTSRequestSerializer(serializers.Serializer):
+    """
+    Serializer for gTTS Text-to-Speech API requests
+    """
+    text = serializers.CharField(
+        help_text="The text to convert to speech"
+    )
+    lang = serializers.CharField(
+        max_length=10,
+        default="en",
+        help_text="Language code (en, es, fr, de, it, etc.)"
+    )
+    tld = serializers.CharField(
+        max_length=10,
+        default="com",
+        help_text="Top level domain for localized voices (com, co.uk, ca, etc.)"
+    )
+    slow = serializers.BooleanField(
+        default=False,
+        help_text="Speak slowly"
     ) 

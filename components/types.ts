@@ -24,7 +24,7 @@ export interface InterviewBatch {
 
 export interface TranscriptEntry {
   id: string
-  speaker: "AI Interviewer" | "Candidate"
+  speaker: "AI Interviewer" | "Candidate" | "System"
   text: string
   timestamp: Date
   duration?: number

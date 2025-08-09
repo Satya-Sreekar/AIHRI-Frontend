@@ -3,8 +3,9 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { ChatService, ChatMessage, ChatServiceConfig, ApiError } from '@/src/services/chatService'
+import { ChatService, ChatMessage, ChatServiceConfig } from '@/src/services/chatService'
 import { CHAT_CONFIG, API_CONFIG } from '@/src/config/api'
+import { textToSpeech, ApiError } from '@/src/services/api'
 import type { TranscriptEntry } from '@/components/types'
 
 export interface UseChatOptions {
@@ -26,10 +27,17 @@ export interface UseChatReturn {
   streamingMessage: string
   streamingMessageId: string | null
   
+  // TTS state
+  ttsAudioMap: Map<string, Blob>
+  currentPlayingId: string | null
+  isTTSGenerating: boolean
+  ttsError: ApiError | null
+  
   // Actions
   sendMessage: (content: string) => Promise<void>
   clearChat: () => void
   updateConfig: (config: Partial<ChatServiceConfig>) => void
+  playTTS: (messageId: string, text: string) => Promise<void>
   
   // Transcript integration
   transcript: TranscriptEntry[]
@@ -56,7 +64,14 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const [isServiceReady, setIsServiceReady] = useState(false)
   
+  // TTS state
+  const [ttsAudioMap, setTTSAudioMap] = useState<Map<string, Blob>>(new Map())
+  const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null)
+  const [isTTSGenerating, setIsTTSGenerating] = useState(false)
+  const [ttsError, setTTSError] = useState<ApiError | null>(null)
+  
   const chatServiceRef = useRef<ChatService | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   
   const config = {
     ...DEFAULT_CONFIG,
@@ -87,6 +102,11 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
           setStreamingMessage('')
           setStreamingMessageId(null)
           setIsGenerating(false)
+          
+          // Automatically generate TTS for AI messages
+          if (message.role === 'assistant' && message.content.trim()) {
+            generateTTSForMessage(message.id, message.content)
+          }
         },
         onError: (error: ApiError) => {
           setError(error)
@@ -113,6 +133,125 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
       initializeService()
     }
   }, [initializeService, options.autoInitialize])
+
+  // Send initial greeting when service becomes ready
+  useEffect(() => {
+    if (isServiceReady && chatServiceRef.current && messages.length === 0) {
+      const initializeGreeting = async () => {
+        try {
+          // Add system message that user has joined
+          const systemMessage = chatServiceRef.current!.addSystemMessage("Candidate has joined the interview session")
+          
+          // Add to messages state 
+          setMessages(prev => [...prev, systemMessage])
+          
+          // Generate AI greeting response immediately
+          await chatServiceRef.current!.generateResponse()
+        } catch (error) {
+          console.error('Failed to initialize greeting:', error)
+        }
+      }
+      
+      initializeGreeting()
+    }
+  }, [isServiceReady, messages.length])
+
+  // Initialize audio element
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio()
+      audioRef.current.addEventListener('ended', () => {
+        setCurrentPlayingId(null)
+      })
+      audioRef.current.addEventListener('error', () => {
+        setTTSError(new ApiError('Audio playback failed'))
+        setCurrentPlayingId(null)
+      })
+    }
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
+
+  // Generate TTS for a message
+  const generateTTSForMessage = useCallback(async (messageId: string, text: string) => {
+    if (ttsAudioMap.has(messageId)) return // Already generated
+
+    setIsTTSGenerating(true)
+    setTTSError(null)
+
+    try {
+      const audioBlob = await textToSpeech({
+        text,
+        lang: 'en',
+        tld: 'com',
+        slow: false
+      })
+
+      setTTSAudioMap(prev => {
+        const newMap = new Map(prev)
+        newMap.set(messageId, audioBlob)
+        return newMap
+      })
+
+      // Auto-play if this is the latest message
+      if (currentPlayingId === null) {
+        playTTSBlob(messageId, audioBlob)
+      }
+
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : new ApiError(
+        error instanceof Error ? error.message : 'TTS generation failed'
+      )
+      setTTSError(apiError)
+    } finally {
+      setIsTTSGenerating(false)
+    }
+  }, [ttsAudioMap, currentPlayingId])
+
+  // Play TTS audio from blob
+  const playTTSBlob = useCallback((messageId: string, blob: Blob) => {
+    if (!audioRef.current) return
+
+    // Stop current audio if playing
+    if (currentPlayingId) {
+      audioRef.current.pause()
+    }
+
+    const audioUrl = URL.createObjectURL(blob)
+    audioRef.current.src = audioUrl
+    setCurrentPlayingId(messageId)
+
+    audioRef.current.play().catch(error => {
+      console.warn('Auto-play failed:', error)
+      setCurrentPlayingId(null)
+      URL.revokeObjectURL(audioUrl)
+    })
+
+    // Clean up URL when audio ends
+    audioRef.current.addEventListener('ended', () => {
+      URL.revokeObjectURL(audioUrl)
+    }, { once: true })
+  }, [currentPlayingId])
+
+  // Manual TTS playback
+  const playTTS = useCallback(async (messageId: string, text: string) => {
+    let audioBlob = ttsAudioMap.get(messageId)
+
+    if (!audioBlob) {
+      // Generate TTS if not already generated
+      await generateTTSForMessage(messageId, text)
+      audioBlob = ttsAudioMap.get(messageId)
+    }
+
+    if (audioBlob) {
+      playTTSBlob(messageId, audioBlob)
+    }
+  }, [ttsAudioMap, generateTTSForMessage, playTTSBlob])
 
   // Send a message
   const sendMessage = useCallback(async (content: string) => {
@@ -164,7 +303,8 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     [
       ...messages.map(msg => ({
         id: msg.id,
-        speaker: msg.role === 'user' ? 'Candidate' : 'AI Interviewer',
+        speaker: msg.role === 'user' ? 'Candidate' : 
+                msg.role === 'system' ? 'System' : 'AI Interviewer',
         text: msg.content,
         timestamp: msg.timestamp,
         duration: msg.metadata?.duration,
@@ -192,9 +332,14 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     error,
     streamingMessage,
     streamingMessageId,
+    ttsAudioMap,
+    currentPlayingId,
+    isTTSGenerating,
+    ttsError,
     sendMessage,
     clearChat,
     updateConfig,
+    playTTS,
     transcript,
     updateFromTranscript,
     initializeService,

@@ -90,39 +90,19 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
     streamingMessage,
     sendMessage,
     isServiceReady,
+    ttsAudioMap,
+    currentPlayingId,
+    isTTSGenerating,
+    ttsError,
+    playTTS,
   } = useChat({
     model: 'llama3.2:latest',
     temperature: 0.7,
     autoInitialize: true,
   })
 
-  // Fallback to static transcript if chat service is not ready
-  const [staticTranscript] = useState<TranscriptEntry[]>([
-    {
-      id: "1",
-      speaker: "AI Interviewer",
-      text: "Hello! I'm your AI interviewer. Let's start with your experience with Django REST Framework. Can you tell me about a project where you used it?",
-      timestamp: new Date(Date.now() - 300000),
-      duration: 8,
-    },
-    {
-      id: "2",
-      speaker: "Candidate",
-      text: "I've built APIs using DRF for 2 years. In my last project, I created a comprehensive e-commerce API with user authentication, product management, and order processing.",
-      timestamp: new Date(Date.now() - 240000),
-      duration: 12,
-    },
-    {
-      id: "3",
-      speaker: "AI Interviewer",
-      text: "That's great! How would you handle authentication and authorization in a DRF application? What are the different methods you've used?",
-      timestamp: new Date(Date.now() - 180000),
-      duration: 7,
-    },
-  ])
-
-  // Use chat transcript if available, otherwise fall back to static
-  const displayTranscript = isServiceReady && transcript.length > 0 ? transcript : staticTranscript
+  // Use dynamic transcript from chat service
+  const displayTranscript = transcript
 
   // Auto-scroll to bottom of sidebar container when transcript updates
   useEffect(() => {
@@ -264,10 +244,14 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
           transcript={displayTranscript} 
           containerRef={desktopScrollRef}
           onSendMessage={handleSendMessage}
+          onPlayTTS={playTTS}
           isGenerating={isGenerating}
-          error={chatError?.message || null}
+          error={chatError?.message || ttsError?.message || null}
           streamingMessage={streamingMessage}
           disabled={!isServiceReady}
+          enableTTS={true}
+          ttsAudioMap={ttsAudioMap}
+          currentPlayingId={currentPlayingId}
         />
       </div>
 

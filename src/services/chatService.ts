@@ -2,8 +2,8 @@
  * Chat Service for handling interview conversations with AI
  */
 
-import { generateText, getModels, GenerateRequest, GenerateResponse, ApiError } from './api'
-import { CHAT_CONFIG, API_CONFIG } from '@/src/config/api'
+import { generateText, getModels, GenerateRequest, GenerateResponse, ApiError, textToSpeech, TTSRequest } from './api'
+import { CHAT_CONFIG, API_CONFIG, TTS_CONFIG } from '@/src/config/api'
 import type { TranscriptEntry } from '@/components/types'
 
 export interface ChatMessage {
@@ -23,6 +23,10 @@ export interface ChatServiceConfig {
   temperature?: number
   systemPrompt?: string
   maxTokens?: number
+  enableTTS?: boolean
+  ttsLang?: string
+  ttsTld?: string
+  ttsSlow?: boolean
 }
 
 export interface ChatServiceCallbacks {
@@ -30,6 +34,9 @@ export interface ChatServiceCallbacks {
   onMessageChunk?: (messageId: string, chunk: string, fullContent: string) => void
   onMessageComplete?: (message: ChatMessage) => void
   onError?: (error: ApiError) => void
+  onTTSStart?: (messageId: string) => void
+  onTTSComplete?: (messageId: string, audioBlob: Blob) => void
+  onTTSError?: (messageId: string, error: ApiError) => void
 }
 
 export class ChatService {
@@ -44,6 +51,10 @@ export class ChatService {
       temperature: CHAT_CONFIG.TEMPERATURE,
       systemPrompt: CHAT_CONFIG.SYSTEM_PROMPT,
       maxTokens: CHAT_CONFIG.MAX_TOKENS,
+      enableTTS: false,
+      ttsLang: TTS_CONFIG.DEFAULT_LANG,
+      ttsTld: TTS_CONFIG.DEFAULT_TLD,
+      ttsSlow: TTS_CONFIG.DEFAULT_SLOW,
       ...config,
     }
     this.callbacks = callbacks
@@ -145,6 +156,12 @@ export class ChatService {
 
         this.conversationHistory.push(message)
         this.callbacks.onMessageComplete?.(message)
+
+        // Generate TTS if enabled
+        if (this.config.enableTTS && fullContent.trim()) {
+          this.generateTTS(message.id, fullContent)
+        }
+
         return message
       }
 
@@ -249,6 +266,29 @@ export class ChatService {
    */
   private generateMessageId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }
+
+  /**
+   * Generate TTS for a message
+   */
+  private async generateTTS(messageId: string, text: string) {
+    try {
+      this.callbacks.onTTSStart?.(messageId)
+
+      const audioBlob = await textToSpeech({
+        text,
+        lang: this.config.ttsLang,
+        tld: this.config.ttsTld,
+        slow: this.config.ttsSlow,
+      })
+
+      this.callbacks.onTTSComplete?.(messageId, audioBlob)
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : new ApiError(
+        error instanceof Error ? error.message : 'TTS generation failed'
+      )
+      this.callbacks.onTTSError?.(messageId, apiError)
+    }
   }
 
   /**

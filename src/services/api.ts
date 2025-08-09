@@ -42,6 +42,19 @@ export interface ModelsResponse {
   models: Model[]
 }
 
+export interface TTSRequest {
+  text: string
+  lang?: string
+  tld?: string
+  slow?: boolean
+}
+
+export interface TTSOptions {
+  onProgress?: (loaded: number, total: number) => void
+  onComplete?: (audioBlob: Blob) => void
+  onError?: (error: ApiError) => void
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -281,4 +294,122 @@ export async function healthCheck(): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/**
+ * Convert text to speech using the TTS API with streaming support
+ */
+export async function textToSpeech(
+  request: TTSRequest,
+  options: TTSOptions = {}
+): Promise<Blob> {
+  return withRetry(async () => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT)
+
+    try {
+      const ttsRequest = {
+        text: request.text,
+        lang: request.lang || 'en',
+        tld: request.tld || 'com',
+        slow: request.slow || false,
+      }
+
+      const response = await fetch(`${API_BASE_URL}/tts/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg, audio/*',
+        },
+        body: JSON.stringify(ttsRequest),
+        signal: controller.signal,
+        mode: 'cors',
+        credentials: 'omit',
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw ApiError.fromResponse(response.status, errorText)
+      }
+
+      // Get content length for progress tracking
+      const contentLength = response.headers.get('content-length')
+      const total = contentLength ? parseInt(contentLength, 10) : 0
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new ApiError('Failed to get response reader')
+      }
+
+      // Collect audio chunks
+      const chunks: Uint8Array[] = []
+      let loaded = 0
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          
+          if (done) break
+
+          chunks.push(value)
+          loaded += value.length
+
+          if (options.onProgress && total > 0) {
+            options.onProgress(loaded, total)
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+
+      // Combine chunks into a single blob
+      const audioBlob = new Blob(chunks, { 
+        type: response.headers.get('content-type') || 'audio/mpeg' 
+      })
+
+      if (options.onComplete) {
+        options.onComplete(audioBlob)
+      }
+
+      return audioBlob
+
+    } catch (error) {
+      clearTimeout(timeoutId)
+      
+      if (error instanceof ApiError) {
+        if (options.onError) {
+          options.onError(error)
+        }
+        throw error
+      }
+      
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        const timeoutError = new ApiError(ERROR_MESSAGES.NETWORK_ERROR, 408, 'Request timeout', true)
+        if (options.onError) {
+          options.onError(timeoutError)
+        }
+        throw timeoutError
+      }
+      
+      const networkError = ApiError.fromNetworkError(error as Error)
+      if (options.onError) {
+        options.onError(networkError)
+      }
+      throw networkError
+    }
+  })
+}
+
+/**
+ * Create an audio URL from text for immediate playback
+ */
+export async function createAudioUrl(
+  text: string,
+  lang: string = 'en',
+  options: TTSOptions = {}
+): Promise<string> {
+  const audioBlob = await textToSpeech({ text, lang }, options)
+  return URL.createObjectURL(audioBlob)
 }

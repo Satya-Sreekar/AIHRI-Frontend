@@ -1,13 +1,14 @@
 "use client"
 
-import React, { RefObject, useState } from "react"
+import React, { RefObject, useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { MessageSquare, Send, Loader2, AlertTriangle, Bot, User, Volume2, VolumeX, Play, Pause, Download } from "lucide-react"
+import { MessageSquare, Send, Loader2, AlertTriangle, Bot, User, Volume2, VolumeX, Play, Pause, Download, Mic, MicOff } from "lucide-react"
 import type { TranscriptEntry } from "@/components/types"
+import { useSpeechRecognition } from "@/src/hooks/useSpeechRecognition"
 
 interface RightSidebarProps {
   transcript: TranscriptEntry[]
@@ -22,6 +23,7 @@ interface RightSidebarProps {
   onPlayTTS?: (messageId: string, text: string) => void
   ttsAudioMap?: Map<string, Blob>
   currentPlayingId?: string | null
+  onSpeechRecognitionStateChange?: (isListening: boolean) => void
 }
 
 export default function RightSidebar({ 
@@ -36,10 +38,46 @@ export default function RightSidebar({
   onTTSToggle,
   onPlayTTS,
   ttsAudioMap = new Map(),
-  currentPlayingId = null
+  currentPlayingId = null,
+  onSpeechRecognitionStateChange
 }: RightSidebarProps) {
   const [inputValue, setInputValue] = useState('')
   const [isSending, setIsSending] = useState(false)
+
+  // Speech recognition hook
+  const {
+    isListening,
+    transcript: speechTranscript,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+    resetTranscript,
+    error: speechError
+  } = useSpeechRecognition({
+    onResult: (transcript) => {
+      // Update input with live transcript
+      setInputValue(transcript)
+    },
+    onFinalResult: (transcript) => {
+      // Auto-send the message after 3 seconds of silence
+      setInputValue(transcript)
+      if (transcript.trim() && onSendMessage) {
+        handleSend()
+      }
+    },
+    onError: (error) => {
+      console.error('Speech recognition error:', error)
+    },
+    autoSendDelay: 3000, // 3 seconds
+    continuous: true,
+    interimResults: true,
+    lang: 'en-US'
+  })
+
+  // Notify parent component when speech recognition state changes
+  useEffect(() => {
+    onSpeechRecognitionStateChange?.(isListening)
+  }, [isListening, onSpeechRecognitionStateChange])
 
   const handleSend = async () => {
     if (!inputValue.trim() || !onSendMessage || isSending || isGenerating) return
@@ -59,6 +97,16 @@ export default function RightSidebar({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+    }
+  }
+
+  // Handle mic button click for speech recognition
+  const handleMicClick = () => {
+    if (isListening) {
+      stopListening()
+      resetTranscript()
+    } else if (isSpeechSupported) {
+      startListening()
     }
   }
   return (
@@ -206,17 +254,48 @@ export default function RightSidebar({
             {onSendMessage && (
               <div className="flex-shrink-0 pt-4 border-t border-slate-600/30">
                 <div className="flex space-x-2">
-                  <Input
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder={disabled ? "Chat disabled" : "Type your response..."}
+                  <div className="flex-1 relative">
+                    <Input
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder={disabled ? "Chat disabled" : isListening ? "Listening..." : "Type your response..."}
+                      disabled={disabled || isSending || isGenerating || isListening}
+                      className={`flex-1 bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 focus:bg-slate-700/70 focus:border-cyan-500/50 text-sm ${
+                        isListening ? 'border-cyan-400/50 bg-cyan-900/20' : ''
+                      }`}
+                    />
+                    {isListening && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                      </div>
+                    )}
+                    {speechError && (
+                      <div className="absolute -bottom-6 left-0 text-xs text-red-400 flex items-center">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        {speechError}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    onClick={handleMicClick}
                     disabled={disabled || isSending || isGenerating}
-                    className="flex-1 bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 focus:bg-slate-700/70 focus:border-cyan-500/50 text-sm"
-                  />
+                    size="sm"
+                    className={`relative ${isListening ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-slate-600 hover:bg-slate-700'} text-white border-cyan-500`}
+                    title={isListening ? "Stop listening" : "Start voice input"}
+                  >
+                    {isListening ? (
+                      <Mic className="h-4 w-4" />
+                    ) : (
+                      <MicOff className="h-4 w-4" />
+                    )}
+                    {isListening && (
+                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    )}
+                  </Button>
                   <Button
                     onClick={handleSend}
-                    disabled={!inputValue.trim() || disabled || isSending || isGenerating}
+                    disabled={!inputValue.trim() || disabled || isSending || isGenerating || isListening}
                     size="sm"
                     className="bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-500"
                   >
@@ -228,7 +307,9 @@ export default function RightSidebar({
                   </Button>
                 </div>
                 <div className="mt-2 text-xs text-gray-400 flex items-center justify-between">
-                  <span>Press Enter to send</span>
+                  <span>
+                    {isListening ? "Listening... Will auto-send in 3s after silence" : "Press Enter to send"}
+                  </span>
                   {isGenerating && (
                     <span className="flex items-center space-x-1 text-cyan-400">
                       <Loader2 className="h-3 w-3 animate-spin" />

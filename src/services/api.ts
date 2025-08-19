@@ -403,6 +403,108 @@ export async function textToSpeech(
 }
 
 /**
+ * Generate TTS for a text chunk with immediate streaming
+ * This function is optimized for small text chunks and returns audio quickly
+ */
+export async function textToSpeechChunk(
+  text: string,
+  options: {
+    lang?: string
+    tld?: string
+    slow?: boolean
+    onComplete?: (blob: Blob) => void
+    onError?: (error: ApiError) => void
+  } = {}
+): Promise<Blob> {
+  return withRetry(async () => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // Shorter timeout for chunks
+
+    try {
+      const ttsRequest = {
+        text: text.trim(),
+        lang: options.lang || 'en',
+        tld: options.tld || 'com',
+        slow: options.slow || false,
+      }
+
+      const response = await fetch(`${API_BASE_URL}/tts/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg, audio/*',
+        },
+        body: JSON.stringify(ttsRequest),
+        signal: controller.signal,
+        mode: 'cors',
+        credentials: 'omit',
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw ApiError.fromResponse(response.status, errorText)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new ApiError('Failed to get response reader')
+      }
+
+      // Collect audio chunks
+      const chunks: Uint8Array[] = []
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          
+          if (done) break
+          chunks.push(value)
+        }
+      } finally {
+        reader.releaseLock()
+      }
+
+      // Combine chunks into a single blob
+      const audioBlob = new Blob(chunks, { 
+        type: response.headers.get('content-type') || 'audio/mpeg' 
+      })
+
+      if (options.onComplete) {
+        options.onComplete(audioBlob)
+      }
+
+      return audioBlob
+
+    } catch (error) {
+      clearTimeout(timeoutId)
+      
+      if (error instanceof ApiError) {
+        if (options.onError) {
+          options.onError(error)
+        }
+        throw error
+      }
+      
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        const timeoutError = new ApiError(ERROR_MESSAGES.NETWORK_ERROR, 408, 'Request timeout', true)
+        if (options.onError) {
+          options.onError(timeoutError)
+        }
+        throw timeoutError
+      }
+      
+      const networkError = ApiError.fromNetworkError(error as Error)
+      if (options.onError) {
+        options.onError(networkError)
+      }
+      throw networkError
+    }
+  })
+}
+
+/**
  * Create an audio URL from text for immediate playback
  */
 export async function createAudioUrl(

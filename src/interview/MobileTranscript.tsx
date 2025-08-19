@@ -4,8 +4,9 @@ import React, { RefObject, Dispatch, SetStateAction } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Send } from "lucide-react"
+import { MessageSquare, Send, Mic, MicOff, AlertTriangle } from "lucide-react"
 import type { TranscriptEntry } from "@/components/types"
+import { useSpeechRecognition } from "@/src/hooks/useSpeechRecognition"
 
 interface MobileTranscriptProps {
   transcript: TranscriptEntry[]
@@ -22,6 +23,45 @@ export default function MobileTranscript({
   handleSendMessage,
   scrollRef,
 }: MobileTranscriptProps) {
+  // Speech recognition hook
+  const {
+    isListening,
+    transcript: speechTranscript,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+    resetTranscript,
+    error: speechError
+  } = useSpeechRecognition({
+    onResult: (transcript) => {
+      // Update input with live transcript
+      setCurrentInput(transcript)
+    },
+    onFinalResult: (transcript) => {
+      // Auto-send the message after 3 seconds of silence
+      setCurrentInput(transcript)
+      if (transcript.trim()) {
+        handleSendMessage()
+      }
+    },
+    onError: (error) => {
+      console.error('Speech recognition error:', error)
+    },
+    autoSendDelay: 3000, // 3 seconds
+    continuous: true,
+    interimResults: true,
+    lang: 'en-US'
+  })
+
+  // Handle mic button click for speech recognition
+  const handleMicClick = () => {
+    if (isListening) {
+      stopListening()
+      resetTranscript()
+    } else if (isSpeechSupported) {
+      startListening()
+    }
+  }
   return (
     <div className="lg:hidden bg-slate-800/20 backdrop-blur-xl border-t border-slate-600/20 p-4 flex-shrink-0">
       <Card className="border-0 shadow-none bg-transparent">
@@ -51,19 +91,50 @@ export default function MobileTranscript({
         </CardContent>
         <CardFooter className="pt-3 px-0">
           <div className="flex w-full space-x-2">
-            <Input
-              placeholder="Type a message..."
-              value={currentInput}
-              onChange={(e) => setCurrentInput(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-              className="flex-1 bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 focus:bg-slate-700/70 focus:border-cyan-500/50 h-9"
-            />
+            <div className="flex-1 relative">
+              <Input
+                placeholder={isListening ? "Listening..." : "Type a message..."}
+                value={currentInput}
+                onChange={(e) => setCurrentInput(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                className={`flex-1 bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 focus:bg-slate-700/70 focus:border-cyan-500/50 h-9 ${
+                  isListening ? 'border-cyan-400/50 bg-cyan-900/20' : ''
+                }`}
+              />
+              {isListening && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                </div>
+              )}
+              {speechError && (
+                <div className="absolute -bottom-6 left-0 text-xs text-red-400 flex items-center">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {speechError}
+                </div>
+              )}
+            </div>
+            <Button
+              onClick={handleMicClick}
+              size="lg"
+              className={`control-button ${isListening ? 'success' : 'danger'} h-9`}
+              style={{ width: "auto", height: "auto", minWidth: "auto", minHeight: "auto" }}
+              title={isListening ? "Stop listening" : "Start voice input"}
+            >
+              {isListening ? (
+                <Mic className="h-4 w-4" />
+              ) : (
+                <MicOff className="h-4 w-4" />
+              )}
+                                            {isListening && (
+                 <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+               )}
+            </Button>
             <Button
               onClick={handleSendMessage}
               size="lg"
               className="control-button primary h-9"
               style={{ width: "auto", height: "auto", minWidth: "auto", minHeight: "auto" }}
-              disabled={!currentInput.trim()}
+              disabled={!currentInput.trim() || isListening}
             >
               <Send className="h-4 w-4" />
             </Button>

@@ -45,6 +45,7 @@ interface CandidateVideoInterviewProps {
 export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewProps) {
   const [showTranscript, setShowTranscript] = useState(true)
   const [currentInput, setCurrentInput] = useState("")
+  const [isSpeechRecognitionActive, setIsSpeechRecognitionActive] = useState(false)
   const desktopScrollRef = useRef<HTMLDivElement>(null)
   const mobileScrollRef = useRef<HTMLDivElement>(null)
   // Direct scroll container reference
@@ -156,6 +157,9 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
             isAudioOn={isAudioOn}
             videoRef={videoRef}
             retryCamera={retryCamera}
+            isAIActive={isGenerating || !!streamingMessage || currentPlayingId !== null}
+            isAISpeaking={currentPlayingId !== null || !!streamingMessage}
+            isSpeechRecognitionActive={isSpeechRecognitionActive}
           />
 
           {/* Live Captions - Fixed height */}
@@ -252,6 +256,7 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
           enableTTS={true}
           ttsAudioMap={ttsAudioMap}
           currentPlayingId={currentPlayingId}
+          onSpeechRecognitionStateChange={setIsSpeechRecognitionActive}
         />
       </div>
 

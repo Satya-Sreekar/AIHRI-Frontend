@@ -15,8 +15,10 @@ import {
   Share,
   ChevronDown,
   PhoneOff,
+  AlertTriangle,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useSpeechRecognition } from "@/src/hooks/useSpeechRecognition"
 
 interface ControlsBarProps {
   isAudioOn: boolean
@@ -51,6 +53,48 @@ export default function ControlsBar({
   handleSendMessage,
   onLogout,
 }: ControlsBarProps) {
+  // Speech recognition hook
+  const {
+    isListening,
+    transcript: speechTranscript,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+    resetTranscript,
+    error: speechError
+  } = useSpeechRecognition({
+    onResult: (transcript) => {
+      // Update input with live transcript
+      setCurrentInput(transcript)
+    },
+    onFinalResult: (transcript) => {
+      // Auto-send the message after 3 seconds of silence
+      setCurrentInput(transcript)
+      if (transcript.trim()) {
+        handleSendMessage()
+      }
+    },
+    onError: (error) => {
+      console.error('Speech recognition error:', error)
+    },
+    autoSendDelay: 3000, // 3 seconds
+    continuous: true,
+    interimResults: true,
+    lang: 'en-US'
+  })
+
+  // Handle mic button click - toggle between speech recognition and regular audio
+  const handleMicClick = () => {
+    if (isListening) {
+      stopListening()
+      resetTranscript()
+    } else if (isSpeechSupported) {
+      startListening()
+    } else {
+      // Fallback to regular audio toggle if speech recognition not supported
+      toggleAudio()
+    }
+  }
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 w-full bg-gradient-to-r from-slate-800 via-gray-800 to-slate-800 backdrop-blur-md border-t border-gray-600 py-4 shadow-xl">
       {/* Background overlay */}
@@ -62,8 +106,20 @@ export default function ControlsBar({
 
         {/* Centered control buttons */}
         <div className="flex-1 flex items-center justify-center space-x-4">
-          <Button size="lg" onClick={toggleAudio} className={`control-button ${isAudioOn ? "success" : "danger"}`}>
-            {isAudioOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+          <Button 
+            size="lg" 
+            onClick={handleMicClick} 
+            className={`control-button relative ${isListening ? "success animate-pulse" : "danger"}`}
+            title={isListening ? "Listening... Click to stop" : isSpeechSupported ? "Click to start voice input" : "Toggle microphone"}
+          >
+            {isListening ? (
+              <Mic className="h-5 w-5" />
+            ) : (
+              <MicOff className="h-5 w-5" />
+            )}
+            {isListening && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+            )}
           </Button>
           <Button size="lg" onClick={toggleVideo} className={`control-button ${isVideoOn ? "success" : "danger"}`}>
             {isVideoOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
@@ -120,19 +176,34 @@ export default function ControlsBar({
         {/* Right side chat input */}
         <div className="w-64 hidden lg:flex">
           <div className="flex w-full space-x-2">
-            <Input
-              placeholder="Type a message..."
-              value={currentInput}
-              onChange={(e) => setCurrentInput(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-              className="flex-1 bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 focus:bg-slate-700/70 focus:border-cyan-500/50 h-10"
-            />
+            <div className="flex-1 relative">
+              <Input
+                placeholder={isListening ? "Listening..." : "Type a message..."}
+                value={currentInput}
+                onChange={(e) => setCurrentInput(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                className={`flex-1 bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 focus:bg-slate-700/70 focus:border-cyan-500/50 h-10 ${
+                  isListening ? 'border-cyan-400/50 bg-cyan-900/20' : ''
+                }`}
+              />
+              {isListening && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                </div>
+              )}
+              {speechError && (
+                <div className="absolute -bottom-6 left-0 text-xs text-red-400 flex items-center">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {speechError}
+                </div>
+              )}
+            </div>
             <Button
               onClick={handleSendMessage}
               size="lg"
               className="control-button primary h-10"
               style={{ width: 'auto', height: 'auto', minWidth: 'auto', minHeight: 'auto' }}
-              disabled={!currentInput.trim()}
+              disabled={!currentInput.trim() || isListening}
             >
               <Send className="h-4 w-4" />
             </Button>

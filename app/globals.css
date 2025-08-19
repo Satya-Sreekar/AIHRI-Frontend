@@ -145,6 +145,14 @@
     animation-delay: 4s;
   }
 
+  .animation-delay-200 {
+    animation-delay: 0.2s;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 0.4s;
+  }
+
   .animate-float {
     animation: float 3s ease-in-out infinite;
   }
@@ -406,6 +414,56 @@
 
   .interview-video-container:hover {
     @apply transform scale-[1.02] shadow-2xl;
+  }
+
+  /* AI Video Active State - Google Meet Style */
+  .ai-video-active {
+    @apply relative;
+  }
+
+  .ai-video-active::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    right: -8px;
+    bottom: -8px;
+    background: linear-gradient(45deg, #06b6d4, #3b82f6, #06b6d4, #3b82f6);
+    background-size: 400% 400%;
+    border-radius: 20px;
+    z-index: -1;
+    animation: gradient-shift 3s ease infinite;
+    filter: blur(4px);
+    opacity: 0.7;
+  }
+
+  @keyframes gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  /* Enhanced pulse glow for AI speaking state */
+  @keyframes pulse-glow-intense {
+    0%, 100% {
+      box-shadow: 
+        0 0 20px rgba(6, 182, 212, 0.6),
+        0 0 40px rgba(6, 182, 212, 0.4),
+        0 0 60px rgba(6, 182, 212, 0.2);
+    }
+    50% {
+      box-shadow: 
+        0 0 30px rgba(6, 182, 212, 0.8),
+        0 0 60px rgba(6, 182, 212, 0.6),
+        0 0 90px rgba(6, 182, 212, 0.4);
+    }
+  }
+
+  .animate-pulse-glow-intense {
+    animation: pulse-glow-intense 2s ease-in-out infinite;
   }
 
   .interview-controls {

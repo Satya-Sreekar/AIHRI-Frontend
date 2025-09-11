@@ -9,16 +9,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Configure for proxy environments
+  // Configure for Vercel deployment
   experimental: {
     serverActions: {
-      allowedOrigins: ['183.82.144.125', 'localhost:3000'],
+      allowedOrigins: ['localhost:3000', '*.vercel.app'],
       bodySizeLimit: '2mb',
     },
-  },
-  // Trust proxy headers
-  serverRuntimeConfig: {
-    trustProxy: true,
   },
   // Additional headers configuration
   async headers() {

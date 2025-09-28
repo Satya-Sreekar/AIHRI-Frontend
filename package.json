@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "build:cloudfront": "next build && echo 'Static files ready in ./out directory for CloudFront deployment'",
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start"

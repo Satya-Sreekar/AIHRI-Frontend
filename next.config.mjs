@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable static export for CloudFront deployment
+  output: 'export',
+  trailingSlash: true,
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -9,10 +12,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Configure for Vercel deployment
+  // Configure for CloudFront deployment
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', '*.vercel.app'],
+      allowedOrigins: ['localhost:3000', '*.cloudfront.net', '*.amazonaws.com'],
       bodySizeLimit: '2mb',
     },
   },

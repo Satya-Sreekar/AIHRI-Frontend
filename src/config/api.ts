@@ -4,7 +4,7 @@
 
 export const API_CONFIG = {
   BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
-  DEFAULT_MODEL: process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'alyx',
+  DEFAULT_MODEL: process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'llama3:8b',
   TIMEOUT: 30000, // 30 seconds
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000, // 1 second

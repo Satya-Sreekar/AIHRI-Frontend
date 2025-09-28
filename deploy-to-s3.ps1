@@ -55,3 +55,6 @@ Write-Host "`n📋 Next steps:" -ForegroundColor Cyan
 Write-Host "1. Make sure your backend is running with ngrok" -ForegroundColor White
 Write-Host "2. Test your CloudFront URL" -ForegroundColor White
 Write-Host "3. Check browser console for any CORS errors" -ForegroundColor White
+
+
+

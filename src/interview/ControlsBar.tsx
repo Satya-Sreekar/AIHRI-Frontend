@@ -71,7 +71,10 @@ export default function ControlsBar({
       // Auto-send the message after 3 seconds of silence
       setCurrentInput(transcript)
       if (transcript.trim()) {
-        handleSendMessage()
+        // Add a small delay to prevent rapid successive calls
+        setTimeout(() => {
+          handleSendMessage()
+        }, 100)
       }
     },
     onError: (error) => {

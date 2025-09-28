@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -96,8 +96,9 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
     isTTSGenerating,
     ttsError,
     playTTS,
+    isLoading,
   } = useChat({
-    model: 'llama3.2:latest',
+    model: 'meta.llama3-8b-instruct-v1:0',
     temperature: 0.7,
     autoInitialize: true,
   })
@@ -118,10 +119,16 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
     }
   }, [displayTranscript, streamingMessage])
 
-  // Handle sending messages through chat service
-  const handleSendMessage = async (message?: string) => {
+  // Handle sending messages through chat service with debouncing
+  const handleSendMessage = useCallback(async (message?: string) => {
     const messageToSend = message || currentInput.trim()
     if (!messageToSend) return
+
+    // Prevent sending if already generating
+    if (isGenerating) {
+      console.warn('Already generating response, ignoring send request')
+      return
+    }
 
     try {
       await sendMessage(messageToSend)
@@ -131,7 +138,7 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }
+  }, [sendMessage, currentInput, isGenerating])
 
   return (
     <div className="h-screen w-full bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 flex flex-col relative overflow-hidden">
@@ -144,6 +151,20 @@ export function CandidateVideoInterview({ onLogout }: CandidateVideoInterviewPro
 
       {/* Header - Fixed at top */}
       <TopBar onLogout={onLogout} />
+
+      {/* Debug Panel - Only show in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-16 right-4 z-50 bg-black/80 text-white p-3 rounded-lg text-xs max-w-xs">
+          <div className="font-bold mb-2">Debug Info</div>
+          <div>Service Ready: {isServiceReady ? '✅' : '❌'}</div>
+          <div>Loading: {isLoading ? '⏳' : '✅'}</div>
+          <div>Generating: {isGenerating ? '⏳' : '✅'}</div>
+          <div>Messages: {transcript.length}</div>
+          <div>Streaming: {streamingMessage ? '⏳' : '✅'}</div>
+          {chatError && <div className="text-red-400">Error: {chatError.message}</div>}
+          {ttsError && <div className="text-red-400">TTS Error: {ttsError.message}</div>}
+        </div>
+      )}
 
       {/* Main Content Area - Takes remaining height */}
       <div className="flex-1 flex w-full relative z-10 min-h-0">

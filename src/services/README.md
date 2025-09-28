@@ -129,7 +129,7 @@ Environment variables (add to `.env.local`):
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8000/api
-NEXT_PUBLIC_DEFAULT_MODEL=llama3.2:latest
+NEXT_PUBLIC_DEFAULT_MODEL=amazon.titan-text-express-v1
 ```
 
 Backend dependencies (already added to `requirements.txt`):
@@ -149,7 +149,7 @@ Generate AI responses with streaming support.
 **Request:**
 ```json
 {
-  "model": "llama3.2:latest",
+  "model": "amazon.titan-text-express-v1",
   "prompt": "Interview question prompt",
   "stream": true,
   "options": {
@@ -161,9 +161,9 @@ Generate AI responses with streaming support.
 
 **Response (Streaming):**
 ```
-data: {"model": "llama3.2:latest", "response": "Hello! ", "done": false}
-data: {"model": "llama3.2:latest", "response": "I'm your AI interviewer.", "done": false}
-data: {"model": "llama3.2:latest", "response": "", "done": true, "total_duration": 1000000}
+data: {"model": "amazon.titan-text-express-v1", "response": "Hello! ", "done": false}
+data: {"model": "amazon.titan-text-express-v1", "response": "I'm your AI interviewer.", "done": false}
+data: {"model": "amazon.titan-text-express-v1", "response": "", "done": true, "total_duration": 1000000}
 ```
 
 ### GET `/api/models/`
@@ -174,7 +174,7 @@ List available AI models.
 {
   "models": [
     {
-      "name": "llama3.2:latest",
+      "name": "amazon.titan-text-express-v1",
       "modified_at": "2024-01-01T00:00:00Z",
       "size": 1000000
     }

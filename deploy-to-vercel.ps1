@@ -80,3 +80,6 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "`n❌ Deployment failed!" -ForegroundColor Red
     Write-Host "Please check the error messages above and try again." -ForegroundColor Red
 }
+
+
+

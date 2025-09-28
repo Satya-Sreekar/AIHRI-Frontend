@@ -82,12 +82,14 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   const initializeService = useCallback(async () => {
     if (chatServiceRef.current) return
 
+    console.log('Initializing chat service with config:', config)
     setIsLoading(true)
     setError(null)
 
     try {
       chatServiceRef.current = new ChatService(config, {
         onMessageStart: (messageId: string) => {
+          console.log('Message generation started:', messageId)
           setStreamingMessageId(messageId)
           setStreamingMessage('')
           setIsGenerating(true)
@@ -98,6 +100,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
           }
         },
         onMessageComplete: (message: ChatMessage) => {
+          console.log('Message generation completed:', message.id, message.content.substring(0, 50) + '...')
           setMessages(prev => [...prev, message])
           setStreamingMessage('')
           setStreamingMessageId(null)
@@ -109,6 +112,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
           }
         },
         onError: (error: ApiError) => {
+          console.error('Chat service error:', error)
           setError(error)
           setIsGenerating(false)
           setStreamingMessage('')
@@ -116,8 +120,10 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         }
       })
 
+      console.log('Chat service initialized successfully')
       setIsServiceReady(true)
     } catch (err) {
+      console.error('Failed to initialize chat service:', err)
       const apiError = err instanceof ApiError ? err : new ApiError(
         err instanceof Error ? err.message : 'Failed to initialize chat service'
       )
@@ -139,16 +145,27 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     if (isServiceReady && chatServiceRef.current && messages.length === 0) {
       const initializeGreeting = async () => {
         try {
+          console.log('Initializing greeting message...')
+          
           // Add system message that user has joined
           const systemMessage = chatServiceRef.current!.addSystemMessage("Candidate has joined the interview session")
           
           // Add to messages state 
           setMessages(prev => [...prev, systemMessage])
           
+          console.log('System message added, generating AI response...')
+          
           // Generate AI greeting response immediately
           await chatServiceRef.current!.generateResponse()
+          
+          console.log('AI greeting response generated successfully')
         } catch (error) {
           console.error('Failed to initialize greeting:', error)
+          // Set error state so user can see what went wrong
+          const apiError = error instanceof ApiError ? error : new ApiError(
+            error instanceof Error ? error.message : 'Failed to initialize greeting'
+          )
+          setError(apiError)
         }
       }
       
@@ -260,7 +277,8 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     }
 
     if (isGenerating) {
-      throw new Error('Already generating response')
+      console.warn('Already generating response, ignoring duplicate send request')
+      return // Return early instead of throwing error
     }
 
     setError(null)
